@@ -65,8 +65,13 @@ diags (cs, n)
 -------------------------------------------------------------------
 
 gameOver :: Board -> Bool
-gameOver
-  = undefined
+gameOver board@(cs , n)
+    = checker (rows board ++ cols board ++ diags board)
+    where
+        checker (x : xs)
+            = (nub x == [Taken O]) || (nub x == [Taken X]) || checker xs
+        checker []
+            = False
 
 -------------------------------------------------------------------
 
@@ -75,19 +80,57 @@ gameOver
 -- separated by whitespace. Bounds checking happens in tryMove, not here.
 --
 parsePosition :: String -> Maybe Position
-parsePosition
-  = undefined
+parsePosition s
+    | row == Nothing || col == Nothing  = Nothing
+    | otherwise                         = Just (fromJust row , fromJust col)
+    where
+        (row  , col) = ((readMaybe x :: Maybe Int) , (readMaybe y :: Maybe Int))
+        (x , y) = sep s
+        sep ""              = ("", "")
+        sep (x : xs)
+            | x == ' '      = ("" , xs)
+            | otherwise     = (x : x' , y')
+            where
+                (x', y') = sep xs
+
+
+parsePosition' :: String -> Maybe Position
+parsePosition' str
+    = readMaybe str' :: Maybe Position
+    where
+        str' = "(" ++ [if (isSpace y) then ',' else y | y <- str] ++ ")"
+
 
 tryMove :: Player -> Position -> Board -> Maybe Board
-tryMove
-  = undefined
+tryMove player (x , y) (cs , n)
+    | x < 0 || y < 0            = Nothing
+    | board_pos == Empty        = Just (move cs pos player , n)
+    | otherwise                 = Nothing
+    where
+        pos = x * n + y
+        board_pos = cs !! pos
+        move (c' : cs') pos player
+            | pos == 0          = (Taken player : cs')
+            | otherwise         = (c' : x')
+            where x' = move cs' (pos - 1) player
+
 
 -------------------------------------------------------------------
 -- I/O Functions
 
 prettyPrint :: Board -> IO ()
-prettyPrint
-  = undefined
+prettyPrint board@(cs , n)
+    = putStr ((foldr1 (newline) (map (intersperse ' ') (map replacer (rows board))))
+    ++ "\n")
+    where
+        newline :: String -> String -> String
+        newline x y   = x ++ "\n" ++ y
+        replacer :: [Cell] -> String
+        replacer []             = ""
+        replacer row@(x : xs)
+            | x == Taken O      = 'O' : replacer xs
+            | x == Taken X      = 'X' : replacer xs
+            | x == Empty        = '-' : replacer xs
 
 -- The following reflect the suggested structure, but you can manage the game
 -- in any way you see fit.
@@ -95,22 +138,56 @@ prettyPrint
 -- Repeatedly read a target board position and invoke tryMove until
 -- the move is successful (Just ...).
 takeTurn :: Board -> Player -> IO Board
-takeTurn
-  = undefined
+takeTurn (cs , n) player
+    = do
+        putStr "Please enter your move: "
+        place <- getLine
+        let xy = parsePosition place
+        if xy == Nothing
+            then takeTurn (cs, n) player
+            else do
+                    let move = tryMove player (fromJust xy) (cs , n)
+                    if move == Nothing
+                        then takeTurn (cs , n) player
+                        else do
+                                putStrLn ("\nNext Player please.")
+                                return (fromJust move)
+
 
 -- Manage a game by repeatedly: 1. printing the current board, 2. using
 -- takeTurn to return a modified board, 3. checking if the game is over,
 -- printing the board and a suitable congratulatory message to the winner
 -- if so.
 playGame :: Board -> Player -> IO ()
-playGame
-  = undefined
+playGame board player
+    = do
+        prettyPrint board
+        newboard <- takeTurn board player
+        if gameOver newboard
+            then putStr "Congratulations\n"
+            else if player == O
+                    then playGame newboard X
+                    else playGame newboard O
+
 
 -- Print a welcome message, read the board dimension, invoke playGame and
 -- exit with a suitable message.
+
 main :: IO ()
 main
-  = undefined
+    = do
+        putStr "Welcome to Tic Tac Toe.\nPlease choose a board size: "
+        num <- getLine
+        let dimension = read num :: Int
+        let board = boardmaker dimension
+        putStr "Player O goes first.\n"
+        playGame board O
+
+boardmaker :: Int -> Board
+boardmaker num
+    = ([Empty | x <- [1,2..num^2]], num)
+
+
 
 -------------------------------------------------------------------
 
