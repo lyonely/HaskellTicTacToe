@@ -80,32 +80,17 @@ gameOver board@(cs , n)
 -- separated by whitespace. Bounds checking happens in tryMove, not here.
 --
 parsePosition :: String -> Maybe Position
-parsePosition s
-    | row == Nothing || col == Nothing  = Nothing
-    | otherwise                         = Just (fromJust row , fromJust col)
-    where
-        (row  , col) = ((readMaybe x :: Maybe Int) , (readMaybe y :: Maybe Int))
-        (x , y) = sep s
-        sep ""              = ("", "")
-        sep (x : xs)
-            | x == ' '      = ("" , xs)
-            | otherwise     = (x : x' , y')
-            where
-                (x', y') = sep xs
-
-
-parsePosition' :: String -> Maybe Position
-parsePosition' str
+parsePosition str
     = readMaybe str' :: Maybe Position
     where
-        str' = "(" ++ [if (isSpace y) then ',' else y | y <- str] ++ ")"
+        str' = "(" ++ [if (isSpace x) then ',' else x | x <- str] ++ ")"
 
 
 tryMove :: Player -> Position -> Board -> Maybe Board
 tryMove player (x , y) (cs , n)
-    | x < 0 || y < 0            = Nothing
-    | board_pos == Empty        = Just (move cs pos player , n)
-    | otherwise                 = Nothing
+    | x < 0 || y < 0 || x >= n || y >= n    = Nothing
+    | board_pos == Empty                    = Just (move cs pos player , n)
+    | otherwise                             = Nothing
     where
         pos = x * n + y
         board_pos = cs !! pos
@@ -140,18 +125,37 @@ prettyPrint board@(cs , n)
 takeTurn :: Board -> Player -> IO Board
 takeTurn (cs , n) player
     = do
-        putStr "Please enter your move: "
-        place <- getLine
-        let xy = parsePosition place
-        if xy == Nothing
-            then takeTurn (cs, n) player
+        if player == O
+            then do
+                let name = "O"
+                putStr ("Player " ++ name ++ ", please enter your move (row col): ")
+                place <- getLine
+                let xy = parsePosition place
+                if xy == Nothing
+                    then do
+                        putStr("Wrong move.")
+                        takeTurn (cs, n) player
+                    else do
+                        let move = tryMove player (fromJust xy) (cs , n)
+                        if move == Nothing
+                            then takeTurn (cs , n) player
+                            else do
+                                    return (fromJust move)
             else do
-                    let move = tryMove player (fromJust xy) (cs , n)
-                    if move == Nothing
-                        then takeTurn (cs , n) player
-                        else do
-                                putStrLn ("\nNext Player please.")
-                                return (fromJust move)
+                let name = "X"
+                putStr ("Player " ++ name ++ ", please enter your move (row col): ")
+                place <- getLine
+                let xy = parsePosition place
+                if xy == Nothing
+                    then do
+                        putStr("Wrong move.")
+                        takeTurn (cs, n) player
+                    else do
+                        let move = tryMove player (fromJust xy) (cs , n)
+                        if move == Nothing
+                            then takeTurn (cs , n) player
+                            else do
+                                    return (fromJust move)
 
 
 -- Manage a game by repeatedly: 1. printing the current board, 2. using
@@ -164,7 +168,13 @@ playGame board player
         prettyPrint board
         newboard <- takeTurn board player
         if gameOver newboard
-            then putStr "Congratulations\n"
+            then if player == O
+                    then do
+                        let name = "O"
+                        putStr ("Congratulations Player " ++ name ++ "!\nThank you for playing\n")
+                    else do
+                        let name = "X"
+                        putStr ("Congratulations Player " ++ name ++ "!\nThank you for playing\n")
             else if player == O
                     then playGame newboard X
                     else playGame newboard O
@@ -178,15 +188,32 @@ main
     = do
         putStr "Welcome to Tic Tac Toe.\nPlease choose a board size: "
         num <- getLine
-        let dimension = read num :: Int
-        let board = boardmaker dimension
-        putStr "Player O goes first.\n"
-        playGame board O
+        let dimension = readMaybe num :: Maybe Int
+        if dimension == Nothing
+            then do
+                    dimension <- dimension_get
+                    let board = boardmaker dimension
+                    putStr "Player O goes first.\n"
+                    playGame board O
+            else do
+                    let board = boardmaker dimension
+                    putStr "Player O goes first.\n"
+                    playGame board O
 
-boardmaker :: Int -> Board
-boardmaker num
+boardmaker :: Maybe Int -> Board
+boardmaker number
     = ([Empty | x <- [1,2..num^2]], num)
+    where num = fromJust number
 
+
+dimension_get
+    = do
+        putStr "Invalid input, please try again: "
+        num <- getLine
+        let dimension = readMaybe num :: Maybe Int
+        if dimension == Nothing
+            then dimension_get
+            else return (dimension)
 
 
 -------------------------------------------------------------------
