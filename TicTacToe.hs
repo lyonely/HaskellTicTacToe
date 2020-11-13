@@ -64,10 +64,13 @@ diags (cs, n)
 
 -------------------------------------------------------------------
 
+-- When given a board, returns True if the board respresents a winning
+-- situation; returns False otherwise
 gameOver :: Board -> Bool
 gameOver board@(cs , n)
     = checker (rows board ++ cols board ++ diags board)
     where
+        checker :: [[Cell]] -> Bool
         checker (x : xs)
             = (nub x == [Taken O]) || (nub x == [Taken X]) || checker xs
         checker []
@@ -79,13 +82,17 @@ gameOver board@(cs , n)
 -- Moves must be of the form "row col" where row and col are integers
 -- separated by whitespace. Bounds checking happens in tryMove, not here.
 --
+
+-- When given an input string, determine whether it can be parsed
+-- as two integers. Result is equivalent to Maybe (Int, Int)
 parsePosition :: String -> Maybe Position
 parsePosition str
     = readMaybe str' :: Maybe Position
     where
         str' = "(" ++ [if (isSpace x) then ',' else x | x <- str] ++ ")"
 
-
+-- Will replace the position specified with the player's marker if the
+-- position is empty. Otherwise, it will return Nothing.
 tryMove :: Player -> Position -> Board -> Maybe Board
 tryMove player (x , y) (cs , n)
     | x < 0 || y < 0 || x >= n || y >= n    = Nothing
@@ -94,6 +101,7 @@ tryMove player (x , y) (cs , n)
     where
         pos = x * n + y
         board_pos = cs !! pos
+        move :: [Cell] -> Int -> Player -> [Cell]
         move (c' : cs') pos player
             | pos == 0          = (Taken player : cs')
             | otherwise         = (c' : x')
@@ -103,6 +111,7 @@ tryMove player (x , y) (cs , n)
 -------------------------------------------------------------------
 -- I/O Functions
 
+--Print out a given board.
 prettyPrint :: Board -> IO ()
 prettyPrint board@(cs , n)
     = putStr ((foldr1 (newline) (map (intersperse ' ') (map replacer (rows board))))
@@ -125,38 +134,19 @@ prettyPrint board@(cs , n)
 takeTurn :: Board -> Player -> IO Board
 takeTurn (cs , n) player
     = do
-        if player == O
+        putStr ("Player " ++ show player ++ ", please enter your move (row col): ")
+        place <- getLine
+        let xy = parsePosition place
+        if xy == Nothing
             then do
-                let name = "O"
-                putStr ("Player " ++ name ++ ", please enter your move (row col): ")
-                place <- getLine
-                let xy = parsePosition place
-                if xy == Nothing
-                    then do
-                        putStr("Wrong move.")
-                        takeTurn (cs, n) player
-                    else do
-                        let move = tryMove player (fromJust xy) (cs , n)
-                        if move == Nothing
-                            then takeTurn (cs , n) player
-                            else do
-                                    return (fromJust move)
+                putStr("Wrong move.")
+                takeTurn (cs, n) player
             else do
-                let name = "X"
-                putStr ("Player " ++ name ++ ", please enter your move (row col): ")
-                place <- getLine
-                let xy = parsePosition place
-                if xy == Nothing
-                    then do
-                        putStr("Wrong move.")
-                        takeTurn (cs, n) player
+                let move = tryMove player (fromJust xy) (cs , n)
+                if move == Nothing
+                    then takeTurn (cs , n) player
                     else do
-                        let move = tryMove player (fromJust xy) (cs , n)
-                        if move == Nothing
-                            then takeTurn (cs , n) player
-                            else do
-                                    return (fromJust move)
-
+                        return (fromJust move)
 
 -- Manage a game by repeatedly: 1. printing the current board, 2. using
 -- takeTurn to return a modified board, 3. checking if the game is over,
@@ -168,13 +158,8 @@ playGame board player
         prettyPrint board
         newboard <- takeTurn board player
         if gameOver newboard
-            then if player == O
-                    then do
-                        let name = "O"
-                        putStr ("Congratulations Player " ++ name ++ "!\nThank you for playing\n")
-                    else do
-                        let name = "X"
-                        putStr ("Congratulations Player " ++ name ++ "!\nThank you for playing\n")
+            then do
+                putStr ("Congratulations Player " ++ show player ++ "!\nThank you for playing\n")
             else if player == O
                     then playGame newboard X
                     else playGame newboard O
@@ -200,12 +185,14 @@ main
                     putStr "Player O goes first.\n"
                     playGame board O
 
+-- Creates a board of N x N size, given dimension N.
 boardmaker :: Maybe Int -> Board
 boardmaker number
     = ([Empty | x <- [1,2..num^2]], num)
     where num = fromJust number
 
-
+-- Obtains the dimension of the board from the players.
+dimension_get :: IO (Maybe Int)
 dimension_get
     = do
         putStr "Invalid input, please try again: "
@@ -218,7 +205,7 @@ dimension_get
 
 -------------------------------------------------------------------
 
-testBoard1, testBoard2, testBoard3 :: Board
+testBoard1, testBoard2, testBoard3, testBoard4 :: Board
 
 testBoard1
   = ([Taken O,Taken X,Empty,Taken O,
@@ -239,3 +226,9 @@ testBoard3
       Taken O,Taken X,Empty,Empty,Taken X,
       Taken X,Empty,Taken O,Empty,Empty],
       5)
+
+testBoard4
+  = ([Taken O, Taken X, Taken O,
+      Taken X, Taken O, Taken X,
+      Taken O, Taken X, Empty],
+      3)
